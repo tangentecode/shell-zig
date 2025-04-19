@@ -49,6 +49,10 @@ pub fn parseCmd(allocator: std.mem.Allocator, raw_cmd: []const u8) !void {
         try cmdCwd(allocator);
     } else if (mem.eql(u8, cmd.?, "help")) {
         try cmdHelp();
+    } else if (mem.eql(u8, cmd.?, "cd")) {
+        try cmdCd(args.items);
+    } else if (mem.eql(u8, cmd.?, "ls")) {
+        try cmdLs();
     } else {
         try stdout.print("Error: Command '{s}' not found\n", .{cmd.?});
     }
@@ -86,16 +90,40 @@ pub fn cmdPrint(allocator: std.mem.Allocator, args: []const []const u8) !void {
 }
 
 pub fn cmdCwd(allocator: std.mem.Allocator) !void {
-    try stdout.print("{s}", .{try getCwd(allocator)});
+    try stdout.print("{s}\n", .{try getCwd(allocator)});
+}
+
+pub fn cmdCd(args: []const []const u8) !void {
+    if (args.len == 0) {
+        try stdout.writeAll("Usage: cd /path/do/directory\n");
+        return;
+    }
+
+    std.posix.chdir(args[0]) catch |err| {
+        try stdout.print("Unexpected Error: {}\n", .{err});
+        return;
+    };
+}
+
+pub fn cmdLs() !void {
+    var dir = try std.fs.cwd().openDir(".", .{ .iterate = true });
+    defer dir.close();
+
+    var iter = dir.iterate();
+    while (try iter.next()) |entry| {
+        try stdout.print("{s}\n", .{entry.name});
+    }
 }
 
 pub fn cmdHelp() !void {
     const help_text =
         "Available commands:\n" ++
-        "exit                   | Exit the command line immediately\n" ++
+        "exit                   | Exit the command line immediately (Alternative exit via CTRL+D)\n" ++
         "clear                  | Removes current command histoy\n" ++
         "print 'example'        | Writes the user-provided text\n" ++
-        "cwd                    | Current working directory\n";
+        "cwd                    | Print current working directory\n" ++
+        "cd                     | Change working directory\n" ++
+        "ls                     | List all items in current directory\n";
     try stdout.print("{s}", .{help_text});
 }
 
