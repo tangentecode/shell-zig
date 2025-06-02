@@ -5,27 +5,6 @@ const mem = std.mem;
 const stdout = std.io.getStdOut().writer();
 const stdin = std.io.getStdIn().reader();
 
-pub fn main() anyerror!void {
-
-    // Initialize gpa allocator
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
-    const allocator = gpa.allocator();
-
-    try stdout.writeAll("\x1B[2J\x1B[H"); // Ansi Escape Code for clearing the terminal
-
-    while (true) {
-        try stdout.print("{s} >> ", .{try getCwd(allocator)});
-        const cmd: ?[]u8 = try stdin.readUntilDelimiterOrEofAlloc(allocator, '\n', std.math.maxInt(usize));
-        defer if (cmd) |c| allocator.free(c);
-
-        // Handle EOF as exit
-        if (cmd == null) std.process.exit(0);
-
-        try parseCmd(allocator, cmd.?);
-    }
-}
-
 pub fn parseCmd(allocator: std.mem.Allocator, raw_cmd: []const u8) !void {
     var iter = mem.splitAny(u8, raw_cmd, " ");
 
@@ -118,12 +97,14 @@ pub fn cmdLs() !void {
 pub fn cmdHelp() !void {
     const help_text =
         "Available commands:\n" ++
-        "exit                   | Exit the command line immediately (Alternative exit via CTRL+D)\n" ++
-        "clear                  | Removes current command histoy\n" ++
+        "exit                   | Exit the command line immediately\n" ++
+        "clear                  | Clear terminal\n" ++
         "print 'example'        | Writes the user-provided text\n" ++
         "cwd                    | Print current working directory\n" ++
         "cd                     | Change working directory\n" ++
-        "ls                     | List all items in current directory\n";
+        "ls                     | List all items in current directory\n" ++
+        "\nHotkeys:\n" ++
+        "Ctrl+d                 | Exit the command line immediately\n";
     try stdout.print("{s}", .{help_text});
 }
 
@@ -133,4 +114,25 @@ pub fn cmdExit() noreturn {
 
 pub fn cmdClear() !void {
     try stdout.writeAll("\x1B[2J\x1B[H"); // Ansi Escape Code for clearing the terminal
+}
+
+pub fn main() anyerror!void {
+
+    // Initialize gpa allocator
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    try cmdClear();
+
+    while (true) {
+        try stdout.print("{s} >> ", .{try getCwd(allocator)});
+        const cmd: ?[]u8 = try stdin.readUntilDelimiterOrEofAlloc(allocator, '\n', std.math.maxInt(usize));
+        defer if (cmd) |c| allocator.free(c);
+
+        // Handle EOF as exit
+        if (cmd == null) std.process.exit(0);
+
+        try parseCmd(allocator, cmd.?);
+    }
 }
